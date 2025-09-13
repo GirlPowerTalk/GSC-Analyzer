@@ -102,15 +102,16 @@ export function formatTextWithChanges(
 
   const result: React.ReactNode[] = [];
   let lastPos = 0;
+  let lastEnd = 0;
 
-  const sorted = changes.slice().sort((a, b) => {
-    const pa = a.type === "deletion" && a.originalPosition !== undefined
+  const sorted: TextChange[] = changes.slice().sort((a, b) => {
+    const aPos = a.type === "deletion" && a.originalPosition !== undefined
       ? a.originalPosition
       : a.position;
-    const pb = b.type === "deletion" && b.originalPosition !== undefined
+    const bPos = b.type === "deletion" && b.originalPosition !== undefined
       ? b.originalPosition
       : b.position;
-    return pa - pb;
+    return aPos - bPos;
   });
 
   sorted.forEach((change, i) => {
@@ -118,7 +119,8 @@ export function formatTextWithChanges(
       ? change.originalPosition
       : change.position;
 
-    // Add unchanged text before this change
+    if (pos < lastEnd) return;
+
     if (pos > lastPos) {
       result.push(text.slice(lastPos, pos));
     }
@@ -129,24 +131,25 @@ export function formatTextWithChanges(
           "span",
           {
             key: `del-${i}`,
-            className: "line-through text-red-700 bg-red-100 px-0.5 rounded",
+            className: "line-through text-red-700 bg-red-100 px-0.5 rounded"
           },
           change.text
         )
       );
       lastPos = pos + change.text.length;
+      lastEnd = lastPos;
     } else if (change.type === "insertion") {
       result.push(
         React.createElement(
           "span",
           {
             key: `ins-${i}`,
-            className: "bg-green-200 text-green-900 px-0.5 rounded",
+            className: "bg-green-200 text-green-900 px-0.5 rounded"
           },
           change.text
         )
       );
-      // insertions don't consume original text
+      lastEnd = lastPos;
     }
   });
 

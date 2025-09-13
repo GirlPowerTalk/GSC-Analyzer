@@ -49,8 +49,7 @@ const PageContent = ({ pageData, queryData, onSave, onContentChanged }: PageCont
   const [searchTerm, setSearchTerm] = useState("");
   const [activeQuery, setActiveQuery] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [savedChanges, setSavedChanges] = useState<TextChange[]>([]);
-
+  
   // Three content states:
   // - initialContent: original content from page load (never changes unless pageData changes)
   // - originalContent: current saved content (changes when saving)
@@ -87,32 +86,19 @@ const PageContent = ({ pageData, queryData, onSave, onContentChanged }: PageCont
   const debouncedEditedContent = useDebounce(editedContent, 100);
   
   // Calculate differences with debouncing to avoid performance issues during typing
+// Calculate differences on the entire text instead of per-line
 useEffect(() => {
   if (originalContent === debouncedEditedContent) {
     setTextChanges([]);
     return;
   }
 
-  const changes: TextChange[] = [];
-  const originalLines = originalContent.split("\n");
-  const editedLines = debouncedEditedContent.split("\n");
-  let offset = 0;
-
-  originalLines.forEach((line, idx) => {
-    const editedLine = editedLines[idx] || "";
-    const lineChanges = findTextDifferences(line, editedLine);
-    lineChanges.forEach(change => {
-      changes.push({
-        ...change,
-        position: change.position + offset,
-        originalPosition:
-          change.originalPosition !== undefined
-            ? change.originalPosition + offset
-            : undefined
-      });
-    });
-    offset += line.length + 1; // +1 for newline
-  });
+  // findTextDifferences should return an array of changes (insertions/deletions)
+  // based on *full text*, not per line.
+  const changes: TextChange[] = findTextDifferences(
+    originalContent,
+    debouncedEditedContent
+  );
 
   setTextChanges(changes);
 
@@ -120,6 +106,7 @@ useEffect(() => {
     onContentChanged(debouncedEditedContent);
   }
 }, [debouncedEditedContent, originalContent, onContentChanged]);
+
 
 
   
@@ -177,18 +164,62 @@ useEffect(() => {
 const handleSaveChanges = () => {
   if (onSave) onSave(editedContent);
 
-  setSavedChanges(textChanges);  // <- capture highlights
+  // Keep originalContent for highlighting current changes
+  // setOriginalContent(editedContent); // don't do this immediately
 
-  setOriginalContent(editedContent);
   setEditMode(false);
   setShowHighlights(true);
+
+  // Optionally, reset history
   setHistory([editedContent]);
   setHistoryIndex(0);
+
   toast.success("Changes saved successfully");
 };
 
+const renderPlainContent = useCallback(
+  (content: string) => {
+    const blockRegex = /\n{2,}/g;
+    const blocks: string[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
 
+    while ((match = blockRegex.exec(content)) !== null) {
+      const block = content.slice(lastIndex, match.index);
+      if (block.trim()) blocks.push(block);
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < content.length) {
+      const block = content.slice(lastIndex);
+      if (block.trim()) blocks.push(block);
+    }
 
+    return blocks.map((block, i) => {
+      const heading = parseHeading(block);
+      if (heading.isHeading) {
+        const HeadingTag = `h${heading.level}` as keyof JSX.IntrinsicElements;
+        return (
+          <HeadingTag
+            key={i}
+            className={`font-bold ${
+              heading.level === 1 ? 'text-2xl mt-6 mb-3' :
+              heading.level === 2 ? 'text-xl mt-5 mb-2' :
+              'text-lg mt-4 mb-2'
+            }`}
+          >
+            {highlightText(heading.text, searchTerm)}
+          </HeadingTag>
+        );
+      }
+      return (
+        <p key={i} className="mb-4">
+          {highlightText(block, searchTerm)}
+        </p>
+      );
+    });
+  },
+  [searchTerm]
+);
 
   const handleDiscardChanges = () => {
     setEditedContent(originalContent);
@@ -541,60 +572,42 @@ const renderContentWithChanges = useCallback((content: string, changes: TextChan
       )}
       
       <Card>
-        <CardContent className="pt-6">
-          <h2 className="text-xl font-bold mb-4">{pageData.title}</h2>
-          <div className="prose max-w-none">
-            {isError ? (
-              <Alert className="bg-amber-50 text-amber-800 border-amber-200 mb-4">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  {pageData.content}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <div 
-                className="bg-white p-4 rounded-md border text-sm leading-relaxed max-h-[600px] overflow-y-auto relative"
-                ref={contentContainerRef}
-              >
-                {editMode ? (
-                  <div className="relative">
-                    <Textarea
-                      ref={textareaRef}
-                      value={editedContent}
-                      onChange={throttledContentChange}
-                      className="min-h-[400px] h-full w-full p-0 border-0 shadow-none font-mono whitespace-pre-wrap leading-relaxed focus-visible:ring-0"
-                      style={{ 
-                        resize: "none", 
-                        outline: "none",
-                        position: "relative",
-                        zIndex: 10,
-                        backgroundColor: "transparent" // Make background transparent to see overlays
-                      }}
-                    />
-                    <TextOverlay
-                      originalText={initialContent}
-                      editedText={editedContent}
-                      changes={textChanges}
-                      isVisible={shouldShowOverlay}
-                      scrollContainer={contentContainerRef}
-                      editMode={true}
-                    />
-                  </div>
-                ) : (
-                  // For view mode, use our new renderContentWithChanges function
-                  // that incorporates highlighting directly
-                 <div className="relative">
+  <CardContent className="pt-6">
+    <h2 className="text-xl font-bold mb-4">{pageData.title}</h2>
+    <div className="prose max-w-none">
+      {isError ? (
+        <Alert className="bg-amber-50 text-amber-800 border-amber-200 mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{pageData.content}</AlertDescription>
+        </Alert>
+      ) : (
+        <div
+          className="bg-white p-4 rounded-md border text-sm leading-relaxed max-h-[600px] overflow-y-auto relative"
+          ref={contentContainerRef}
+        >
+          {editMode ? (
+            // ✨ EDIT MODE — textarea only, no overlay
+            <Textarea
+              ref={textareaRef}
+              value={editedContent}
+              onChange={throttledContentChange}
+              className="min-h-[400px] h-full w-full p-0 border-0 shadow-none font-mono whitespace-pre-wrap leading-relaxed focus-visible:ring-0 bg-transparent"
+              style={{ resize: "none", outline: "none" }}
+            />
+          ) : (
+            // ✨ VIEW MODE — render with or without highlights
+           <div className="relative">
   {showHighlights
-    ? renderContentWithChanges(editedContent, savedChanges) // use savedChanges here
-    : <div>{editedContent}</div>}
+    ? renderContentWithChanges(editedContent, textChanges)
+    : renderPlainContent(originalContent)}
 </div>
 
-                )}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
+      )}
+    </div>
+  </CardContent>
+</Card>
     </div>
   );
 };
