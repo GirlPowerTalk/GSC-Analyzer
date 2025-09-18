@@ -345,7 +345,6 @@ const renderPlainContent = useCallback(
     toast.success('Content with highlights exported as HTML');
   };
 
-  // Render content with text changes highlighting directly in view mode
 // Render content with text changes highlighting directly in view mode
 const renderContentWithChanges = useCallback((content: string, changes: TextChange[]) => {
   const blockRegex = /\n{2,}/g;
