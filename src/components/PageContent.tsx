@@ -328,35 +328,32 @@ const renderContentWithChanges = useCallback((content: string, changes: TextChan
               </Alert>
             ) : (
               <div className="bg-white p-4 rounded-md border text-sm leading-relaxed max-h-[600px] overflow-y-auto relative" ref={contentContainerRef}>
-       <div className="relative">
-  {editMode ? (
-    <div className="relative">
-      <Textarea
-        ref={textareaRef}
-        value={editedContent}
-        onChange={throttledContentChange}
-        className="min-h-[400px] h-full w-full p-0 border-0 shadow-none font-mono whitespace-pre-wrap leading-relaxed focus-visible:ring-0"
-        style={{ resize: "none", outline: "none", position: "relative", zIndex: 10, backgroundColor: "transparent" }}
-      />
-      <TextOverlay
-        originalText={comparisonBase}
-        editedText={editedContent}
-        changes={textChanges}
-        isVisible={showHighlights && textChanges.length > 0}
-        scrollContainer={contentContainerRef}
-        editMode={false}
-      />
-    </div>
-  ) : (
-    <div className="relative">
-      {showHighlights
-        ? renderContentWithChanges(originalContent, allChanges) // saved highlights
-        : renderContentWithChanges(initialContent, []) // original content
-      }
-    </div>
-  )}
-</div>
-
+           {editMode ? (
+  <div className="relative">
+    <Textarea
+      ref={textareaRef}
+      value={editedContent}
+      onChange={throttledContentChange}
+      className="min-h-[400px] h-full w-full p-0 border-0 shadow-none font-mono whitespace-pre-wrap leading-relaxed focus-visible:ring-0"
+      style={{ resize: "none", outline: "none", position: "relative", zIndex: 10, backgroundColor: "transparent" }}
+    />
+    <TextOverlay
+      originalText={comparisonBase}
+      editedText={editedContent}
+      changes={textChanges}       // ✅ only current unsaved changes
+      isVisible={showHighlights}
+      scrollContainer={contentContainerRef}
+      editMode={false}
+    />
+  </div>
+) : (
+  <div className="relative">
+    {renderContentWithChanges(
+      showHighlights ? originalContent : initialContent,
+      showHighlights ? [...allChanges, ...textChanges] : []
+    )}
+  </div>
+)}
 
 
               </div>
