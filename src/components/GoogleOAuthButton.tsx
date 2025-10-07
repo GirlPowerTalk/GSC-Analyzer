@@ -16,7 +16,7 @@ const GoogleOAuthButton = ({ onAuthResult }: GoogleOAuthButtonProps) => {
     
     try {
       // Google OAuth configuration
-      const CLIENT_ID = "707071001382-h158p2kb1rb3r8g41jptql83e3gpi5ik.apps.googleusercontent.com";
+      const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
       const REDIRECT_URI = "https://preview--gsc-page-analyzer.lovable.app/account";
       const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
       

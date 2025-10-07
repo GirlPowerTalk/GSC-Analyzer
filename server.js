@@ -171,6 +171,34 @@ app.post("/api/service-account", async (req, res) => {
   }
 });
 
+
+// --------------------------
+// Fetch Existing Service Account (for displaying in UI)
+// --------------------------
+app.get("/api/service-account/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+
+    const { data, error } = await supabaseAdmin
+      .from("user_service_accounts")
+      .select("client_email")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data?.client_email) {
+      return res.status(404).json({ message: "No service account found for this user" });
+    }
+
+    return res.status(200).json({ serviceAccountEmail: data.client_email });
+  } catch (err) {
+    console.error("[ERROR] Fetch service account:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // --------------------------
 // Start Server
 // --------------------------

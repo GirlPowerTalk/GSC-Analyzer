@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,37 +14,51 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Check, Shield, Globe, Trash2 } from "lucide-react";
 
-const SERVICE_ACCOUNT_EMAIL = "gsc-141@gsc-saas-458015.iam.gserviceaccount.com";
-
 const GscSettings = () => {
   const { user } = useAuth();
+  const [serviceAccountEmail, setServiceAccountEmail] = useState<string | null>(null);
   const [serviceAccountKey, setServiceAccountKey] = useState("");
   const [hasStoredKey, setHasStoredKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifiedDomains, setVerifiedDomains] = useState<{ id: string; domain: string }[]>([]);
   const [newDomain, setNewDomain] = useState("");
 
-  useEffect(() => {
-    const checkExistingCredentials = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('gsc_credentials')
-          .select('service_account_key')
-          .eq('user_id', user.id)
-          .maybeSingle();
-          
-        if (data && !error) {
-          setHasStoredKey(true);
-        }
-      } catch (error) {
-        console.error("Error checking credentials:", error);
-      }
-    };
-    
-    checkExistingCredentials();
-  }, [user]);
+useEffect(() => {
+  const fetch = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("user_service_accounts")
+      .select("*")
+      .eq("user_id", user.id);
+    console.log("Logged-in user id:", user.id);
+    console.log({ data, error });
+  };
+  fetch();
+}, [user]);
+
+
+
+ useEffect(() => {
+  const fetch = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("user_service_accounts")
+      .select("client_email")
+      .eq("user_id", user.id)
+      .maybeSingle(); // or .single() if you expect only 1 row
+
+    console.log("Logged-in user id:", user.id);
+    console.log({ data, error });
+
+    if (data?.client_email) {
+      setServiceAccountEmail(data.client_email);
+    }
+  };
+
+  fetch();
+}, [user]);
+
 
   useEffect(() => {
     const fetchVerifiedDomains = async () => {
@@ -167,15 +180,16 @@ const GscSettings = () => {
 
   return (
     <div className="space-y-4">
-      {/* <Alert variant="default" className="bg-blue-50 border-blue-200">
+      <Alert variant="default" className="bg-blue-50 border-blue-200">
         <AlertCircle className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
-          Add this service account email as an Owner in your Google Search Console properties:
+          {/* Add this service account email as an Owner in your Google Search Console properties: */}
+           Generated Service Account Email :
           <p className="mt-2 font-mono text-sm break-all">
-            {SERVICE_ACCOUNT_EMAIL}
+            {serviceAccountEmail || "Service account not generated yet"}
           </p>
         </AlertDescription>
-      </Alert> */}
+      </Alert>
 
       {hasStoredKey ? (
         <Alert className="bg-green-50 text-green-800 border-green-200">
@@ -197,15 +211,15 @@ const GscSettings = () => {
                   <li>Click on "Users and permissions"</li>
                   <li>Click "Add User"</li>
                   <li>Enter the service account email shown above</li>
-                  <li>Select "Owner" as the permission level</li>
+                  <li>Select "Allow all" as the permission level</li>
                   <li>Click "Add"</li>
-                  <li>Upload your service account JSON key below</li>
+                  {/* <li>Upload your service account JSON key below</li> */}
                 </ol>
               </AccordionContent>
             </AccordionItem>
           </Accordion>
           
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Textarea
                 value={serviceAccountKey}
@@ -218,7 +232,7 @@ const GscSettings = () => {
             <Button type="submit" disabled={loading}>
               {loading ? "Saving..." : "Save Credentials"}
             </Button>
-          </form>
+          </form> */}
         </>
       )}
       
