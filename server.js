@@ -43,22 +43,23 @@ async function createGoogleServiceAccount(userId, userEmail) {
 
   // Create service account if it doesn't exist
   try {
-    await iam.projects.serviceAccounts.create({
-      name: `projects/${GOOGLE_PROJECT_ID}`,
-      requestBody: {
-        accountId: serviceAccountId,
-        serviceAccount: { displayName: `User Service Account for ${userEmail}` },
-      },
-    });
-    console.log(`[INFO] Service account ${serviceAccountEmail} created.`);
-  } catch(err)  {
-    if (err?.errors?.[0]?.reason === "alreadyExists") {
-      console.log(`[INFO] Service account already exists, continuing to key creation.`);
-    } else {
-      console.error(`[ERROR] Failed to create service account:`, err);
-      throw err;
-    }
+  await iam.projects.serviceAccounts.create({
+    name: `projects/${GOOGLE_PROJECT_ID}`,
+    requestBody: {
+      accountId: serviceAccountId,
+      serviceAccount: { displayName: `User Service Account for ${userEmail}` },
+    },
+  });
+  console.log(`[INFO] Service account ${serviceAccountEmail} created.`);
+} catch (err) {
+  if (err?.response?.status === 409) {
+    console.log(`[INFO] Service account already exists: ${serviceAccountEmail}`);
+  } else {
+    console.error(`[ERROR] Failed to create service account:`, err);
+    throw err;
   }
+}
+
 
  // 0️⃣ Check Supabase for existing key first
 const { data: existing, error: dbError } = await supabaseAdmin
@@ -107,21 +108,29 @@ return serviceAccountEmail;
 app.post("/api/signup", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    if (!email || !password) 
+      return res.status(400).json({ error: "Email and password required" });
 
     console.log(`[INFO] Signup request for email: ${email}`);
 
+    // 1️⃣ Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const userExists = existingUsers.users.find(u => u.email === email);
 
     if (userExists) {
-      const msg = userExists.email_confirmed_at
-        ? "Account already exists and verified. Please sign in."
-        : "Account exists but not verified. Check your email.";
-      console.log(`[WARN] Signup failed for ${email}: ${msg}`);
-      return res.status(400).json({ error: msg });
+      if (userExists.email_confirmed_at) {
+        // ✅ User exists and verified
+        console.log(`[WARN] Signup attempt for already verified user: ${email}`);
+        return res.status(400).json({ error: "User already registered. Please sign in." });
+      } else {
+        // 🔄 User exists but not verified → resend verification email
+        await supabaseAdmin.auth.admin.sendVerificationEmail(email);
+        console.log(`[INFO] Resent verification email to: ${email}`);
+        return res.status(200).json({ message: "Verification code sent. Check your email." });
+      }
     }
 
+    // 2️⃣ User does not exist → create user
     const { data, error: supaError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -131,16 +140,21 @@ app.post("/api/signup", async (req, res) => {
 
     if (supaError || !data?.user) throw supaError;
 
+    // 3️⃣ Send verification email
+    await supabaseAdmin.auth.admin.sendVerificationEmail(email);
+
     console.log(`[INFO] Signup successful for ${email}, userId: ${data.user.id}`);
     return res.status(200).json({
-      message: "Signup successful! Please verify your email before signing in.",
+      message: "Signup successful! Verification code sent. Check your email.",
       userId: data.user.id,
     });
-  } catch {
+
+  } catch (err) {
     console.error("[ERROR] Signup error:", err);
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 // --------------------------
 // Service Account Creation Endpoint
@@ -195,6 +209,30 @@ app.get("/api/service-account/:userId", async (req, res) => {
     return res.status(200).json({ serviceAccountEmail: data.client_email });
   } catch (err) {
     console.error("[ERROR] Fetch service account:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+app.post("/api/check-user", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required" });
+
+    // Check if user exists
+    const { data: existingUsers, error } = await supabaseAdmin.auth.admin.listUsers();
+    if (error) throw error;
+
+    const user = existingUsers.users.find(u => u.email === email);
+
+    if (user) {
+      return res.status(200).json({
+        exists: true,
+        verified: !!user.email_confirmed_at, // true if verified
+      });
+    }
+
+    return res.status(200).json({ exists: false, verified: false });
+  } catch (err) {
+    console.error("[ERROR] Check user:", err);
     return res.status(500).json({ error: err.message });
   }
 });

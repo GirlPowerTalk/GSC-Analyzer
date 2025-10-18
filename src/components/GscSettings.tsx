@@ -102,9 +102,10 @@ useEffect(() => {
       }
       
       const { error } = await supabase
-        .from('gsc_credentials')
+        .from('user_service_accounts')
         .upsert({ 
-          service_account_key: parsedKey,
+          private_key: parsedKey,
+          client_email: parsedKey.client_email,
           user_id: user?.id
         });
 

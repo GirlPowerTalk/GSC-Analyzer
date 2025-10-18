@@ -150,10 +150,10 @@ const Analyze = () => {
   useEffect(() => {
     const fetchCredentials = async () => {
       try {
-        const { data: serviceAccountData, error: serviceAccountError } = await supabase
-          .from("gsc_credentials")
-          .select("service_account_key")
-          .limit(1);
+        const { data: serviceAccountData, error } = await supabase
+  .from("user_service_accounts")
+  .select("*")
+
         
         if (serviceAccountData && serviceAccountData.length > 0) {
           setCredentials(serviceAccountData[0]);
@@ -205,8 +205,15 @@ const Analyze = () => {
         
         let propertiesData: string[] = [];
         
-        if (gscMode === "api" && credentials.service_account_key) {
-          propertiesData = await fetchGscProperties(credentials.service_account_key);
+        if (gscMode === "api" && credentials.private_key) {
+
+          const serviceAccount = typeof credentials.private_key === 'string'
+  ? JSON.parse(credentials.private_key)
+  : credentials.private_key;
+
+propertiesData = await fetchGscProperties(serviceAccount);
+
+           console.log("Fetching GSC properties using service account:", serviceAccount.client_email);
         } else if (gscMode === "oauth") {
           toast.error("OAuth property fetching not implemented yet");
           return;
@@ -220,22 +227,31 @@ const Analyze = () => {
         console.log("Fetched properties:", propertiesData);
         console.log("Verified domains:", verifiedDomains);
         
-        const filteredProperties = propertiesData.filter(property => {
-          const propertyDomain = extractDomain(property);
-          
-          return verifiedDomains.some(vd => {
-            const verifiedDomain = vd.toLowerCase();
-            const exactMatch = propertyDomain === verifiedDomain;
-            const subdomainMatch = propertyDomain.endsWith(`.${verifiedDomain}`);
-            const domainContains = propertyDomain.includes(verifiedDomain) || 
-                                  verifiedDomain.includes(propertyDomain);
-            
-            console.log(`Comparing: "${propertyDomain}" with "${verifiedDomain}":`, 
-                        { exactMatch, subdomainMatch, domainContains });
-            
-            return exactMatch || subdomainMatch || domainContains;
-          });
-        });
+        const normalizeDomain = (url: string) => {
+  return url
+    .toLowerCase()
+    .replace(/^https?:\/\//, '') // remove protocol
+    .replace(/^www\./, '')       // remove www.
+    .replace(/\/$/, '');         // remove trailing slash
+};
+
+const filteredProperties = propertiesData.filter(property => {
+  const propertyDomain = normalizeDomain(property);
+
+  return verifiedDomains.some(vd => {
+    const verifiedDomain = normalizeDomain(vd);
+    const exactMatch = propertyDomain === verifiedDomain;
+    const subdomainMatch = propertyDomain.endsWith(`.${verifiedDomain}`);
+    const domainContains = propertyDomain.includes(verifiedDomain) || 
+                            verifiedDomain.includes(propertyDomain);
+
+    console.log(`Comparing: "${propertyDomain}" with "${verifiedDomain}"`, 
+                { exactMatch, subdomainMatch, domainContains });
+
+    return exactMatch || subdomainMatch || domainContains;
+  });
+});
+
         
         console.log("Filtered properties:", filteredProperties);
         
@@ -283,13 +299,13 @@ const Analyze = () => {
       try {
         let queries: any[] = [];
         
-        if (gscMode === "api" && credentials.service_account_key) {
+        if (gscMode === "api" && credentials.private_key) {
           console.log(`Fetching GSC data at ${new Date().toISOString()}`);
           console.log(`Using date filter: ${days} days`);
           console.log(`Custom date range: ${customStartDate} to ${customEndDate}`);
           
           const gscResponse = await fetchSearchAnalytics(
-            credentials.service_account_key,
+            credentials.private_key,
             selectedProperty,
             url,
             days,
