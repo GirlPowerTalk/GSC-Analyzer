@@ -27,19 +27,31 @@ const Auth = () => {
   setLoading(true);
 
   try {
-    const { error } = await supabase.auth.signUp({ email, password });
+    // 1️⃣ Check if user exists first
+    const res = await fetch("http://localhost:3000/api/check-user", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email }),
+});
 
-    if (error) {
-      // Handle existing user
-      if (error.message.includes("already registered")) {
-        toast.error("Email already exists. Please sign in or check your inbox for verification.");
+    const data = await res.json();
+
+    if (data.exists) {
+      if (data.verified) {
+        toast.error("User already registered. Please sign in.");
       } else {
-        toast.error(error.message);
+        toast.success("Verification email already sent. Check your inbox.");
       }
       return;
     }
 
-    // New user signed up successfully
+    // 2️⃣ User doesn't exist → sign up
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
     toast.success(
       "Signup successful! Check your inbox and click the verification link before signing in."
     );
@@ -49,6 +61,7 @@ const Auth = () => {
     setLoading(false);
   }
 };
+
 
 
   /** ---------- SIGN-IN (verify first) ---------- */
