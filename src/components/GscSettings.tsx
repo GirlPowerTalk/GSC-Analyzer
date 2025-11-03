@@ -181,12 +181,12 @@ useEffect(() => {
 
   return (
     <div className="space-y-4">
-      <Alert variant="default" className="bg-blue-50 border-blue-200">
+      <Alert variant="default" className="bg-blue-100 border-blue-200">
         <AlertCircle className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
           {/* Add this service account email as an Owner in your Google Search Console properties: */}
            Generated Service Account Email :
-          <p className="mt-2 font-mono text-sm break-all">
+          <p className="mt-2 font-mono text-sm break-all ">
             {serviceAccountEmail || "Service account not generated yet"}
           </p>
         </AlertDescription>
@@ -238,7 +238,7 @@ useEffect(() => {
       )}
       
       {/* Domain Management Section - Always visible */}
-      <div className="bg-gray-50 p-4 rounded-md mt-6">
+      <div className="bg-dark-lighter border-purple/10 text-white placeholder:text-gray-500 p-4 rounded-md mt-6">
         <h3 className="text-lg font-medium mb-3">Manage Domains</h3>
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -247,7 +247,7 @@ useEffect(() => {
               placeholder="Enter domain (e.g., example.com)"
               value={newDomain}
               onChange={(e) => setNewDomain(e.target.value)}
-              className="flex-1"
+              className="flex-1 text-black"
             />
             <Button onClick={handleAddDomain}>
               Add Domain

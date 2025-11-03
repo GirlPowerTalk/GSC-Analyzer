@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, AlertTriangle, Save, X, Edit, Undo2, Redo2, Copy, Download, Eye, EyeOff } from "lucide-react";
+import { Search, AlertTriangle, Save, X, Edit, Undo2, Redo2, Copy, Download, Eye, EyeOff, History } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import TextOverlay from "@/components/TextOverlay";
 import { toast } from "sonner";
 import { useDebouncedCallback } from "@/hooks/useDebounceCallback";
 import { useThrottleCallback } from "@/hooks/useThrottleCallback";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface QueryData {
   query: string;
@@ -61,7 +62,10 @@ const [accumulatedChanges, setAccumulatedChanges] = useState<TextChange[]>([]);
 
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
+  const [savedVersions, setSavedVersions] = useState<
+    { content: string; timestamp: string }[]
+  >([]);
+  const [isVersionsOpen, setIsVersionsOpen] = useState(false);
   // Update content when pageData changes
   useEffect(() => {
     setInitialContent(pageData.content);
@@ -114,7 +118,22 @@ const [accumulatedChanges, setAccumulatedChanges] = useState<TextChange[]>([]);
     setActiveQuery(query === activeQuery ? null : query);
     setSearchTerm(query === activeQuery ? "" : query);
   };
+   const handleSaveVersion = () => {
+    const newVersion = {
+      content: editedContent,
+      timestamp: new Date().toLocaleString(),
+    };
+    setSavedVersions((prev) => [newVersion, ...prev]);
+    toast.success("Version saved successfully!");
+  };
 
+  // 🆕 Restore Version Function
+  const handleRestoreVersion = (content: string) => {
+    setEditedContent(content);
+    setEditMode(true);
+    setIsVersionsOpen(false);
+    toast.info("Version restored for editing.");
+  };
   const parseHeading = (block: string) => {
     const headingMatch = block.match(/^(#+)\s+(.*)/);
     if (headingMatch) {
@@ -366,6 +385,12 @@ ${convertToHighlightedHTML(contentToExport, textChanges)}
             </> : <>
               <Button variant="outline" size="sm" onClick={copyWithHighlights} className="flex items-center gap-1" title="Copy with highlights"><Copy className="h-4 w-4" /></Button>
               <Button variant="outline" size="sm" onClick={exportWithHighlights} className="flex items-center gap-1" title="Export with highlights"><Download className="h-4 w-4" /></Button>
+              <Button variant="outline" size="sm" onClick={handleSaveVersion}>
+                <History className="h-4 w-4 mr-1" /> Save Version
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsVersionsOpen(true)}>
+                <Eye className="h-4 w-4 mr-1" /> View Versions
+              </Button>
               <Button variant="outline" size="sm" onClick={toggleShowChanges} className="flex items-center gap-1">{showHighlights ? <><EyeOff className="h-4 w-4" /> Hide Changes</> : <><Eye className="h-4 w-4" /> Show Changes</>}</Button>
               <Button variant="outline" size="sm" onClick={() => setEditMode(true)} className="flex items-center gap-1"><Edit className="h-4 w-4" /> Edit</Button>
             </>}
@@ -380,6 +405,60 @@ ${convertToHighlightedHTML(contentToExport, textChanges)}
           ))}
         </div>
       )}
+      {/* 🆕 Modal for Saved Versions */}
+<Dialog open={isVersionsOpen} onOpenChange={setIsVersionsOpen}>
+  <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Saved Versions</DialogTitle>
+    </DialogHeader>
+
+    {savedVersions.length === 0 ? (
+      <p className="text-gray-500 text-sm mt-2">No saved versions yet.</p>
+    ) : (
+      <div className="space-y-4 mt-4">
+        {savedVersions.map((version, index) => (
+          <div
+            key={index}
+            className="border rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition"
+          >
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm text-gray-600">
+                Saved on: <span className="font-medium">{version.timestamp}</span>
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleRestoreVersion(version.content)}
+                >
+                  Restore
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setSavedVersions(savedVersions.filter((_, i) => i !== index))
+                  }
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Full content view */}
+            <div className="bg-white border rounded-md p-3 max-h-[300px] overflow-y-auto text-sm whitespace-pre-wrap">
+  {renderContentWithChanges(
+    version.content,
+    findTextDifferences(initialContent, version.content)
+  )}
+</div>
+
+          </div>
+        ))}
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
 
       <Card>
         <CardContent className="pt-6">
