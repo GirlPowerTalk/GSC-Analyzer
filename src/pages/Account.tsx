@@ -17,14 +17,14 @@ const Account = () => {
   }
 
   return (
-    <div className="p-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-brand-800 mb-6 flex items-center">
-          <UserCog className="mr-3" /> Account Settings
+    <div className="p-8 backdrop-blur-sm bg-gradient-dark min-h-screen">
+      <div className="max-w-2xl mx-auto ">
+        <h1 className="text-3xl font-bold bg-gradient-glow bg-clip-text text-transparent mb-6 flex items-center">
+          <UserCog className="mr-3 text-brand-400 " /> Account Settings
         </h1>
 
-        <div className="space-y-6">
-          <Card>
+        <div className="space-y-6 ">
+          <Card className='backdrop-blur-sm bg-dark-card border-purple/10 text-white placeholder:text-gray-500'>
             <CardHeader>
               <CardTitle>Google Search Console Connection</CardTitle>
               <CardDescription>

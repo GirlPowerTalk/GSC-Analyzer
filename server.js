@@ -6,6 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { GoogleAuth } from "google-auth-library";
 import crypto from "crypto";
+import aiRoutes from "./routes/aiRoutes.js";
+import verifiedDomainRoutes from "./routes/verifiedDomainRoutes.js";
+import OpenAI from "openai";
+import aiContentRoutes from "./routes/aiContentRoutes.js";
 
 dotenv.config({ path: ".env.local" });
 
@@ -24,6 +28,9 @@ const SERVICE_ROLE_KEY = JSON.parse(Buffer.from(SERVICE_ROLE_KEY_BASE64, "base64
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+app.use("/api/ai", aiRoutes);
+app.use("/api/verified-domains", verifiedDomainRoutes);
+app.use("/api/ai", aiContentRoutes);
 
 // --------------------------
 // Helper: Create Google Service Account
@@ -236,6 +243,70 @@ app.post("/api/check-user", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+// --------------------------
+// AI Keyword Suggestion Endpoint (OpenAI)
+// --------------------------
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Store securely in .env
+});
+
+app.post("/api/ai/suggest-keywords", async (req, res) => {
+  try {
+    const { domain, existingKeywords = [], customKeywords = [] } = req.body;
+
+    if (!domain && existingKeywords.length === 0 && customKeywords.length === 0) {
+      return res.status(400).json({ error: "Please provide domain or keywords." });
+    }
+
+    console.log(`[INFO] 🔍 AI keyword suggestion for: ${domain || "custom keywords"}`);
+
+    const aiPrompt = `
+      You are an SEO expert analyzing website and keyword data.
+
+      Details:
+      - Domain: ${domain || "N/A"}
+      - Existing Keywords: ${existingKeywords.join(", ") || "None"}
+      - Custom Keywords: ${customKeywords.join(", ") || "None"}
+
+      Suggest 10 **relevant and actionable keywords** that can boost organic search visibility.
+
+      Output ONLY a JSON array like this:
+      ["keyword1", "keyword2", "keyword3", ...]
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: aiPrompt }],
+      temperature: 0.7,
+    });
+
+    const text = completion.choices[0].message.content.trim();
+
+    let suggestions;
+    try {
+      suggestions = JSON.parse(text);
+    } catch {
+      suggestions = text
+        .replace(/[\[\]"]/g, "")
+        .split(",")
+        .map(k => k.trim())
+        .filter(Boolean);
+    }
+
+    return res.json({
+      provider: "openai",
+      domain,
+      suggestions,
+      total: suggestions.length,
+    });
+
+  } catch (err) {
+    console.error("[ERROR] OpenAI keyword suggestion:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // --------------------------
 // Start Server

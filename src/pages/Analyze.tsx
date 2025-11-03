@@ -14,6 +14,8 @@ import { fetchSearchAnalytics, getDefaultDateRange, formatDateForDisplay, getDat
 import PageContent from "@/components/PageContent";
 import QueriesTable from "@/components/QueriesTable";
 import { RefreshCw, Calendar } from "lucide-react";
+import KeywordSuggestions from "@/components/KeywordSuggestions";
+import { generateAIContent } from "@/lib/generateContent";
 
 const Analyze = () => {
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ const Analyze = () => {
   const type = searchParams.get("type") || "full";
   
   const [url, setUrl] = useState(urlParam || "");
+  const [keywords, setKeywords] = useState([]);
   const [days, setDays] = useState("28");
   const [actualDateRange, setActualDateRange] = useState<{
     startDate: string;
@@ -53,7 +56,11 @@ const Analyze = () => {
   const refreshIntervalRef = useRef<number | null>(null);
   const prevUrlRef = useRef<string | null>(null);
   const lastFetchTimeRef = useRef<number>(Date.now());
-  
+  // near other useState declarations
+const [isGenerating, setIsGenerating] = useState(false);
+const [generatedContent, setGeneratedContent] = useState(null);
+
+
   // Force refetch when URL changes
   useEffect(() => {
     if (urlParam && urlParam !== prevUrlRef.current) {
@@ -287,6 +294,7 @@ const filteredProperties = propertiesData.filter(property => {
     }
   }, [credentials, gscMode, url, hasShownFetchingToast]);
   
+  
   const [editedContent, setEditedContent] = useState<string | null>(null);
   
   const { data: queryData, isLoading: isLoadingQueries, refetch: refetchQueries } = useQuery({
@@ -440,7 +448,7 @@ const filteredProperties = propertiesData.filter(property => {
   }
   
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="container mx-auto px-4 py-8 max-w-7xl backdrop-blur-sm bg-dark-card border-purple/10">
       <div className="flex items-center justify-between mb-8">
         <Button variant="outline" onClick={handleBackClick}>
           Back to Home
@@ -477,7 +485,9 @@ const filteredProperties = propertiesData.filter(property => {
         </div>
       </div>
       
-      <Card className="mb-8">
+      <Card className="mb-8 
+      
+      ">
         <CardHeader>
           <CardTitle className="text-2xl flex items-center gap-2 justify-between">
             <div>
@@ -509,7 +519,84 @@ const filteredProperties = propertiesData.filter(property => {
                   onContentChanged={handleContentChanged}
                 />
               )}
-              
+              <div className="mt-8 border-t border-gray-700 pt-6">
+  <h2 className="text-xl font-semibold mb-4">AI Page Content</h2>
+
+  <Button
+  onClick={async () => {
+    try {
+      setIsGenerating(true);
+      toast.info("Generating AI content...");
+
+      // Use all GSC queries (or slice to N if you want), but include clicks/impressions
+      const gscPayload = (queryData || []).slice(0, 10).map(q => ({
+        query: q.query,
+        clicks: q.clicks,
+        impressions: q.impressions
+      }));
+
+      const payload = {
+        domain: extractDomain(url),
+        pageTitle: pageContent?.title || "Untitled Page",
+        pageDescription: (pageContent?.content || ""), 
+        keywords: keywords || {}, 
+        gscQueries: gscPayload,
+      };
+
+      console.log("[AI FULL CONTENT PAYLOAD]", payload);
+
+      const response = await generateAIContent({ ...payload, apiBaseUrl: import.meta.env.VITE_API_BASE_URL });
+
+      if (response.ok && response.content) {
+        setGeneratedContent(response.content);
+        toast.success("AI content generated!");
+      } else {
+        // show helpful debug info if AI returned non-JSON/raw_text
+        console.warn("AI generate response:", response);
+        toast.error(response.error || "AI returned invalid response — check console.");
+      }
+    } catch (err) {
+      console.error("[ERROR] Generate AI Content:", err);
+      toast.error("Error generating AI content.");
+    } finally {
+      setIsGenerating(false);
+    }
+  }}
+  disabled={isGenerating}
+>
+  {isGenerating ? "Generating..." : "Generate AI Content"}
+</Button>
+
+
+
+  {generatedContent && (
+  <div className="mt-6 space-y-4 p-4 rounded-md bg-gray-900 text-gray-100 border border-gray-700">
+    <h3 className="text-lg font-semibold text-blue-400 mb-2">Optimized Content</h3>
+    <div
+    className="whitespace-pre-wrap text-gray-300"
+    dangerouslySetInnerHTML={{
+      __html: generatedContent
+        .replace(/\[KEYWORD:\s*(.*?)\]/g, '<span style="color: #4ade80; font-weight: 600;">$1</span>')
+    }}
+  />
+  </div>
+)}
+
+</div>
+
+      <KeywordSuggestions
+  domain={extractDomain(url)}
+  pageTitle={pageContent?.title || "Untitled Page"}
+  pageDescription={pageContent?.content || "No description available."}
+  gscQueries={(queryData || []).slice(0, 10).map(q => ({
+    query: q.query,
+    clicks: q.clicks,
+    impressions: q.impressions
+  }))}  
+  onKeywordsGenerated={setKeywords}
+/>
+
+
               <QueriesTable 
                 data={queryData || []} 
                 showOccurrences={type === "full"} 
