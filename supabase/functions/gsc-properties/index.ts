@@ -39,18 +39,33 @@ serve(async (req) => {
     })
 
     // Fetch site list
-    console.log('Fetching GSC properties...')
-    const response = await searchconsole.sites.list()
-    
-    // Extract site URLs and permission levels from the response
-    const sites = response.data.siteEntry || []
-    const properties = sites.map(site => ({
-      siteUrl: site.siteUrl,
-      permissionLevel: site.permissionLevel
-    })).filter(site => site.siteUrl)
-    
-    console.log(`Found ${properties.length} GSC properties`)
-    console.log('Properties:', properties.map(p => p.siteUrl).join(', '))
+    // Fetch site list
+console.log('Fetching GSC properties...')
+const response = await searchconsole.sites.list()
+
+// Log the entire response data for debugging
+console.log('🔍 Full GSC API response:', JSON.stringify(response.data, null, 2))
+
+// Extract site URLs and permission levels from the response
+const sites = response.data.siteEntry || []
+
+console.log(`🧩 Raw sites count from GSC: ${sites.length}`)
+sites.forEach((site, index) => {
+  console.log(
+    `#${index + 1} → ${site.siteUrl} | Permission: ${site.permissionLevel}`
+  )
+})
+
+// Then continue with your mapping
+const properties = sites
+  .map(site => ({
+    siteUrl: site.siteUrl,
+    permissionLevel: site.permissionLevel
+  }))
+  .filter(site => site.siteUrl)
+
+console.log(`✅ Processed ${properties.length} properties.`)
+
     
     // If url is provided, check if user has access to it
     let hasAccess = false
