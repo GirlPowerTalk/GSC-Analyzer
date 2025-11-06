@@ -29,7 +29,7 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:3000/api/check-user", {
+      const res = await fetch(`${API_BASE_URL}/api/check-user`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
